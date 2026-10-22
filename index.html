@@ -1,0 +1,176 @@
+<!doctype html>
+<!--
+  Página pública do convidado: o QR code da cabine abre esta página com o endereço do vídeo no link
+  (?v=<endereço do vídeo na nuvem>). Ela não sabe qual serviço guarda o vídeo: trocar de serviço
+  não muda nada aqui. Hospede este arquivo em qualquer lugar que sirva páginas estáticas
+  (GitHub Pages, Cloudflare Pages, Netlify) e coloque o endereço em PAGINA_PUBLICA_URL no .env do agente.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Seu depoimento</title>
+  <style>
+    :root {
+      --fundo: #111111;
+      --texto: #ffffff;
+      --suave: #a3a3a3;
+      --destaque: #22c55e;
+      --texto-destaque: #000000;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--fundo);
+      color: var(--texto);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 40px;
+    }
+    main { width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 20px; }
+    header { display: flex; flex-direction: column; gap: 6px; }
+    h1 { font-size: 1.6rem; margin: 8px 0 0; text-align: center; }
+    .pequeno { font-size: 0.85rem; }
+    p { color: var(--suave); text-align: center; margin: 0; line-height: 1.5; }
+    video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px; }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      background: var(--destaque);
+      color: var(--texto-destaque);
+      font: inherit;
+      font-weight: 700;
+      font-size: 1.15rem;
+      padding: 16px 24px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: default; }
+    .aviso { text-align: center; padding: 40px 0; }
+    .girando {
+      width: 48px; height: 48px; margin: 0 auto 20px;
+      border: 5px solid #ffffff33; border-top-color: var(--destaque);
+      border-radius: 50%; animation: girar 1s linear infinite;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Seu depoimento</h1>
+      <p>Obrigado por participar! Assista e salve o seu vídeo.</p>
+    </header>
+
+    <section id="preparando" class="aviso" hidden>
+      <div class="girando"></div>
+      <p>Seu vídeo está sendo preparado.<br>Esta página atualiza sozinha; pode deixar aberta.</p>
+    </section>
+
+    <section id="invalido" class="aviso" hidden>
+      <p>Link inválido. Aponte a câmera de novo para o QR code da cabine.</p>
+    </section>
+
+    <video id="video" controls playsinline preload="metadata" hidden></video>
+    <button id="baixar" hidden>Baixar vídeo</button>
+    <p id="dica" hidden></p>
+    <p id="guardar" class="pequeno" hidden>Dica: salve o vídeo no seu aparelho para guardar.</p>
+  </main>
+
+  <script>
+    const NOME_ARQUIVO = 'meu-depoimento.mp4';
+    const TENTAR_DE_NOVO_MS = 20000;
+
+    const $ = (id) => document.getElementById(id);
+    const video = $('video');
+    const baixar = $('baixar');
+    const dica = $('dica');
+
+    // Só aceita endereço https (a página não toca qualquer coisa que colocarem no link)
+    function lerEndereco() {
+      try {
+        const v = new URLSearchParams(location.search).get('v');
+        const url = new URL(v);
+        return url.protocol === 'https:' ? url.href : null;
+      } catch {
+        return null;
+      }
+    }
+
+    const endereco = lerEndereco();
+    if (!endereco) {
+      $('invalido').hidden = false;
+    } else {
+      carregar();
+    }
+
+    // Antes do envio terminar o vídeo ainda não existe: mostra "preparando" e tenta de novo
+    function carregar() {
+      video.onloadedmetadata = () => {
+        $('preparando').hidden = true;
+        video.hidden = false;
+        baixar.hidden = false;
+        $('guardar').hidden = false;
+      };
+      video.onerror = () => {
+        $('preparando').hidden = false;
+        video.hidden = true;
+        baixar.hidden = true;
+        $('guardar').hidden = true;
+        setTimeout(() => {
+          video.src = endereco + (endereco.includes('?') ? '&' : '?') + 't=' + Date.now();
+        }, TENTAR_DE_NOVO_MS);
+      };
+      video.src = endereco;
+    }
+
+    // Baixar em dois toques: o primeiro traz o vídeo, o segundo salva.
+    // No celular, "Salvar" abre o menu de compartilhar (com "Salvar vídeo" na galeria).
+    let arquivo = null;
+    baixar.onclick = async () => {
+      if (arquivo) return salvar(arquivo);
+      baixar.disabled = true;
+      baixar.textContent = 'Preparando o download...';
+      try {
+        const resposta = await fetch(endereco);
+        if (!resposta.ok) throw new Error(String(resposta.status));
+        const blob = await resposta.blob();
+        arquivo = new File([blob], NOME_ARQUIVO, { type: 'video/mp4' });
+        baixar.textContent = 'Salvar no aparelho';
+        baixar.disabled = false;
+      } catch {
+        // Sem como trazer o arquivo aqui: abre o vídeo direto (no celular, segure o dedo sobre ele para salvar)
+        baixar.textContent = 'Baixar vídeo';
+        baixar.disabled = false;
+        dica.textContent = 'Se o vídeo abrir em vez de baixar, segure o dedo sobre ele e escolha salvar.';
+        dica.hidden = false;
+        window.open(endereco, '_blank', 'noopener');
+      }
+    };
+
+    async function salvar(arquivo) {
+      if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+        try {
+          await navigator.share({ files: [arquivo] });
+          return;
+        } catch (erro) {
+          if (erro.name === 'AbortError') return; // a pessoa fechou o menu
+        }
+      }
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(arquivo);
+      link.download = NOME_ARQUIVO;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+    }
+  </script>
+</body>
+</html>
