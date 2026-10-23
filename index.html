@@ -90,7 +90,8 @@
   </main>
 
   <script>
-    const NOME_ARQUIVO = 'meu-depoimento.mp4';
+    // Nome do vídeo baixado: vem no link (?arquivo=..., escolhido no evento)
+    const NOME_ARQUIVO = lerNomeArquivo();
     const TENTAR_DE_NOVO_MS = 20000;
 
     const $ = (id) => document.getElementById(id);
@@ -107,6 +108,13 @@
       } catch {
         return null;
       }
+    }
+
+    function lerNomeArquivo() {
+      const nome = (new URLSearchParams(location.search).get('arquivo') || '')
+        .replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').trim().slice(0, 104);
+      if (!nome) return 'meu-depoimento.mp4';
+      return /\.mp4$/i.test(nome) ? nome : nome + '.mp4';
     }
 
     // Último dia em que o vídeo fica na nuvem (?ate=AAAA-MM-DD). Sem ele, sem prazo (links antigos).
