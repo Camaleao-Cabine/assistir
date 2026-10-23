@@ -63,7 +63,7 @@
 </head>
 <body>
   <main>
-    <header>
+    <header id="header">
       <h1>Seu depoimento</h1>
       <p>Obrigado por participar! Assista e salve o seu vídeo.</p>
     </header>
@@ -71,6 +71,11 @@
     <section id="preparando" class="aviso" hidden>
       <div class="girando"></div>
       <p>Seu vídeo está sendo preparado.<br>Esta página atualiza sozinha; pode deixar aberta.</p>
+      <p class="pequeno">Se fechar, sem problema: volte depois por este mesmo link (no histórico do navegador ou lendo o QR code de novo).</p>
+    </section>
+
+    <section id="expirado" class="aviso" hidden>
+      <p>Este vídeo não está mais disponível.<br>O prazo para assistir e salvar terminou.</p>
     </section>
 
     <section id="invalido" class="aviso" hidden>
@@ -81,6 +86,7 @@
     <button id="baixar" hidden>Baixar vídeo</button>
     <p id="dica" hidden></p>
     <p id="guardar" class="pequeno" hidden>Dica: salve o vídeo no seu aparelho para guardar.</p>
+    <p id="prazo" class="pequeno" hidden></p>
   </main>
 
   <script>
@@ -103,10 +109,27 @@
       }
     }
 
+    // Último dia em que o vídeo fica na nuvem (?ate=AAAA-MM-DD). Sem ele, sem prazo (links antigos).
+    function lerPrazo() {
+      const ate = new URLSearchParams(location.search).get('ate');
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ate || '');
+      return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+    }
+
     const endereco = lerEndereco();
+    const prazo = lerPrazo();
+    // Vale até o fim do último dia (no horário do celular)
+    const venceu = prazo && Date.now() >= prazo.getTime() + 24 * 60 * 60 * 1000;
     if (!endereco) {
       $('invalido').hidden = false;
+    } else if (venceu) {
+      $('header').hidden = true;
+      $('expirado').hidden = false;
     } else {
+      if (prazo) {
+        $('prazo').textContent = 'Este link fica disponível até ' + prazo.toLocaleDateString('pt-BR') + '.';
+        $('prazo').hidden = false;
+      }
       carregar();
     }
 
